@@ -241,11 +241,24 @@ client.on("interactionCreate", async (interaction) => {
 
 client.on("error", (error) => console.error(`[discord] ${error.message}`))
 
-client.login(DISCORD_TOKEN).catch((error) => {
-  if (String(error).includes("TOKEN_INVALID") || String(error.code) === "TokenInvalid") {
-    fatal(
-      "Discord rejected DISCORD_TOKEN. Reset the token at discord.com/developers → your app → Bot → Reset Token, update the Environment variable and restart."
-    )
+// Check the FadeHost side FIRST so a bad token of either kind fails fast
+// with a message that says exactly what to fix.
+async function boot() {
+  try {
+    const server = await resolveServer()
+    console.log(`[startup] FadeHost token OK — watching ${server.name} (${server.prefixed_id})`)
+  } catch (error) {
+    fatal(error.message)
   }
-  fatal(`Could not log in to Discord: ${error.message}`)
-})
+
+  client.login(DISCORD_TOKEN).catch((error) => {
+    if (String(error).includes("TOKEN_INVALID") || String(error.code) === "TokenInvalid") {
+      fatal(
+        "Discord rejected DISCORD_TOKEN. Reset the token at discord.com/developers → your app → Bot → Reset Token, update the Environment variable and restart."
+      )
+    }
+    fatal(`Could not log in to Discord: ${error.message}`)
+  })
+}
+
+boot()
