@@ -76,10 +76,12 @@ async function api(method, path, expectJson = true) {
   return expectJson ? res.json() : null
 }
 
+class NoServersYet extends Error {}
+
 async function resolveServer() {
   const servers = await api("GET", "/servers")
   if (!Array.isArray(servers) || servers.length === 0) {
-    throw new Error("No servers on this FadeHost account yet.")
+    throw new NoServersYet("No servers on this FadeHost account yet.")
   }
   if (SERVER_ID) {
     const match = servers.find((s) => s.prefixed_id === SERVER_ID)
@@ -243,13 +245,23 @@ client.on("error", (error) => console.error(`[discord] ${error.message}`))
 
 // Check the FadeHost side FIRST so a bad token of either kind fails fast
 // with a message that says exactly what to fix.
-async function boot() {
-  try {
-    const server = await resolveServer()
-    console.log(`[startup] FadeHost token OK — watching ${server.name} (${server.prefixed_id})`)
-  } catch (error) {
-    fatal(error.message)
+// An account with no server yet is not an error: people add the bot before
+// their first server. Wait for one instead of crash-looping.
+async function waitForServer() {
+  for (;;) {
+    try {
+      return await resolveServer()
+    } catch (error) {
+      if (!(error instanceof NoServersYet)) fatal(error.message)
+      console.log("[startup] FadeHost token OK — no server on this account yet. Create one in the panel; checking again in 60s.")
+      await new Promise((resolve) => setTimeout(resolve, 60_000))
+    }
   }
+}
+
+async function boot() {
+  const server = await waitForServer()
+  console.log(`[startup] FadeHost token OK — watching ${server.name} (${server.prefixed_id})`)
 
   client.login(DISCORD_TOKEN).catch((error) => {
     if (String(error).includes("TOKEN_INVALID") || String(error.code) === "TokenInvalid") {
