@@ -1,5 +1,7 @@
 # FadeHost Server Status Bot
 
+[![Deploy to FadeHost](https://fadehost.com/deploy-button.svg)](https://laplace.fadehost.com/register?intent=bot&repo=https://github.com/FadeHost/server-status-bot)
+
 Your FadeHost game server, inside Discord:
 
 - The bot's presence always shows the live player count ("Watching 4 players on Emberfell")
