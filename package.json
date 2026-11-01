@@ -4,7 +4,8 @@
   "description": "Your FadeHost game server in Discord: live status, who's online, and start/stop/restart commands.",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

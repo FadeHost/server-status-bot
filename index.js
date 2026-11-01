@@ -20,6 +20,7 @@ const {
   REST,
   Routes,
 } = require("discord.js")
+const { addressOf, stateOf } = require("./lib")
 
 const API = "https://api.fadehost.com/api"
 
@@ -58,7 +59,7 @@ async function api(method, path, expectJson = true) {
 
   if (res.status === 401) {
     throw new Error(
-      "FadeHost rejected the token — it may have been revoked. Mint a new one at laplace.fadehost.com/profile/ai-access."
+      "FadeHost rejected the token, so it may have been revoked. Mint a new one at laplace.fadehost.com/profile/ai-access."
     )
   }
   if (res.status === 402) {
@@ -95,24 +96,6 @@ async function resolveServer() {
   return servers[0]
 }
 
-function addressOf(server) {
-  if (!server.hostname) return null
-  return server.port === 25565 ? server.hostname : `${server.hostname}:${server.port}`
-}
-
-const STATUS_META = {
-  Online: { emoji: "🟢", color: 0x22c55e },
-  Starting: { emoji: "🟡", color: 0xf59e0b },
-  Restarting: { emoji: "🟡", color: 0xf59e0b },
-  Hibernating: { emoji: "🌙", color: 0x818cf8 },
-  Stopping: { emoji: "🟠", color: 0xf97316 },
-  Stopped: { emoji: "⚫", color: 0x71717a },
-}
-
-function meta(status) {
-  return STATUS_META[status] || { emoji: "⚪", color: 0x71717a }
-}
-
 // ---- Discord client ------------------------------------------------------
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] })
@@ -138,18 +121,18 @@ const commands = [
 async function updatePresence() {
   try {
     const server = await resolveServer()
-    const online = server.status === "Online"
+    const state = stateOf(server)
     const count = server.onlinePlayerCount ?? 0
     client.user.setPresence({
       activities: [
         {
           type: ActivityType.Watching,
-          name: online
+          name: state.online
             ? `${count} ${count === 1 ? "player" : "players"} on ${server.name}`
-            : `${server.name} · ${server.status.toLowerCase()}`,
+            : `${server.name} · ${state.label.toLowerCase()}`,
         },
       ],
-      status: online ? "online" : "idle",
+      status: state.online ? "online" : "idle",
     })
   } catch (error) {
     console.error(`[presence] ${error.message}`)
@@ -168,7 +151,7 @@ client.once("clientReady", async () => {
 
   const rest = new REST().setToken(DISCORD_TOKEN)
   await rest.put(Routes.applicationCommands(client.user.id), { body: commands })
-  console.log("[ready] Slash commands registered — they can take a minute to appear.")
+  console.log("[ready] Slash commands registered. They can take a minute to appear.")
 
   updatePresence()
   setInterval(updatePresence, 60_000)
@@ -182,15 +165,15 @@ client.on("interactionCreate", async (interaction) => {
   try {
     const server = await resolveServer()
     const address = addressOf(server)
-    const m = meta(server.status)
+    const state = stateOf(server)
 
     switch (interaction.commandName) {
       case "status": {
         const embed = new EmbedBuilder()
-          .setTitle(`${m.emoji} ${server.name}`)
-          .setColor(m.color)
+          .setTitle(`${state.emoji} ${server.name}`)
+          .setColor(state.color)
           .addFields(
-            { name: "Status", value: server.status, inline: true },
+            { name: "Status", value: state.note ? `${state.label}, ${state.note}` : state.label, inline: true },
             {
               name: "Players",
               value: `${server.onlinePlayerCount ?? 0}${server.slots ? ` / ${server.slots}` : ""}`,
@@ -205,10 +188,11 @@ client.on("interactionCreate", async (interaction) => {
 
       case "players": {
         const names = Array.isArray(server.players_sample) ? server.players_sample : []
-        if (server.status !== "Online") {
-          await interaction.editReply(`${m.emoji} ${server.name} is ${server.status.toLowerCase()} right now.`)
+        if (!state.online) {
+          const when = state.note ? ` right now and ${state.note}` : " right now"
+          await interaction.editReply(`${state.emoji} ${server.name} is ${state.label.toLowerCase()}${when}.`)
         } else if ((server.onlinePlayerCount ?? 0) === 0) {
-          await interaction.editReply(`Nobody on ${server.name} right now — be the first!`)
+          await interaction.editReply(`Nobody is on ${server.name} right now.`)
         } else {
           const extra = (server.onlinePlayerCount ?? 0) - names.length
           await interaction.editReply(
@@ -253,7 +237,7 @@ async function waitForServer() {
       return await resolveServer()
     } catch (error) {
       if (!(error instanceof NoServersYet)) fatal(error.message)
-      console.log("[startup] FadeHost token OK — no server on this account yet. Create one in the panel; checking again in 60s.")
+      console.log("[startup] FadeHost token OK, but there is no server on this account yet. Create one in the panel; checking again in 60s.")
       await new Promise((resolve) => setTimeout(resolve, 60_000))
     }
   }
@@ -261,7 +245,7 @@ async function waitForServer() {
 
 async function boot() {
   const server = await waitForServer()
-  console.log(`[startup] FadeHost token OK — watching ${server.name} (${server.prefixed_id})`)
+  console.log(`[startup] FadeHost token OK, watching ${server.name} (${server.prefixed_id})`)
 
   client.login(DISCORD_TOKEN).catch((error) => {
     if (String(error).includes("TOKEN_INVALID") || String(error.code) === "TokenInvalid") {

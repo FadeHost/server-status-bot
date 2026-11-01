@@ -5,10 +5,11 @@
 Your FadeHost game server, inside Discord:
 
 - The bot's presence always shows the live player count ("Watching 4 players on Emberfell")
-- `/status` — status, players and address in one embed
-- `/players` — who is online right now
-- `/ip` — the address to join
-- `/start`, `/stop`, `/restart` — server control for members with **Manage Server**
+- `/status`: status, players and the address to join in one embed
+- `/players`: who is online right now
+- `/ip`: the address to join, the one the panel shows
+- `/start`, `/stop`, `/restart`: server control for members with **Manage Server**
+- A server FadeHost put to sleep shows as sleeping, with a note that it wakes up when someone joins
 
 Built and maintained by [FadeHost](https://fadehost.com). Works with any game
 server on your FadeHost account.
